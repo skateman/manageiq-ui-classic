@@ -1498,23 +1498,12 @@ function miqWidgetToolbarClick(_e) {
 }
 
 function miqInitAccordions() {
-  var height = $('#left_div').height() - $('#toolbar').outerHeight();
-  var panel = $('#left_div .panel-heading').outerHeight();
-  var count = $('#accordion:visible > .panel .panel-body').length;
-  $('#accordion:visible > .panel .panel-body').each(function(_k, v) {
-    if (window.matchMedia('(max-width: 768px)').matches) {
-      $(v).css('max-height', '');
-      $(v).css('overflow-y', 'none');
-    } else {
-      $(v).css('max-height', (height - count * panel) + 'px');
-      $(v).css('overflow-y', 'auto');
-    }
-    $(v).css('overflow-x', 'hidden');
-  });
+  $('.fixed-height-accordion-pf').initFixedAccordion();
 }
 
 // Function to resize the main content for best fit between the toolbar & footer
 function miqInitMainContent() {
+  /*
   var toolbar = $('#toolbar');
   var footer = $('#paging_div');
   var buttons = $('#form_buttons_div');
@@ -1529,6 +1518,7 @@ function miqInitMainContent() {
   }
 
   $('#main-content').css('height', 'calc(100% - ' + height + 'px)');
+  */
 }
 
 function miqHideSearchClearButton(explorer) {

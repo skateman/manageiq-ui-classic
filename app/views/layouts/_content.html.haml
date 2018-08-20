@@ -4,19 +4,13 @@
     .row.max-height
       = yield
 - elsif inner_layout_present?
-  - session[:sidebar] ||= {}
-  - sidewidth = simulate? ? 5 : session[:sidebar][params[:controller]] ||= 3
-  - maindiv = 12 - sidewidth
-  - sidebar = sidewidth == 0 ? 'hidden-md hidden-lg col-md-0' : "col-md-#{sidewidth} col-md-pull-#{maindiv}"
-
   = render :partial => "layouts/vertical_navbar"
-
-  .container-fluid.container-pf-nav-pf-vertical.container-pf-nav-pf-vertical-with-sub-menus.resizable-sidebar.max-height{:style => "overflow: hidden !important"}
-    .row.toolbar-pf#toolbar.miq-toolbar-menu
-      .col-sm-12
+  .container-pf-nav-pf-vertical.content-inner-fixed-vertical-pf
+    .container-fluid
+      .row.toolbar-pf
         = render :partial => "layouts/angular/toolbar"
-    .row.max-height
-      #right_div.resizable.max-height{:class => "col-md-#{maindiv} col-md-push-#{sidewidth}"}
+    .content-inner-fixed-horizontal-pf.content-inner-content-pf.reversed
+      #right_div.content-inner-content-pf.container-fluid
         #main-content.row.miq-layout-content
           .col-md-12
             .row
@@ -48,17 +42,7 @@
             - if saved_report_paging?
               = render(:partial => 'layouts/saved_report_paging_bar',
                        :locals  => {:pages => @sb[:pages]})
-
-        - unless simulate?
-          .resizer.hidden-xs
-            .resizer-box
-              .btn-group
-                .btn.btn-default.resize-left
-                  %span.fa.fa-angle-left
-                .btn.btn-default.resize-right{:class => sidewidth == 5 ? 'disabled' : ''}
-                  %span.fa.fa-angle-right
-
-      #left_div.resizable.sidebar-pf.sidebar-pf-left.max-height.scrollable{:class => sidebar}
+      #left_div.content-sidebar-pf.sidebar-pf.sidebar-pf-left.container-fluid
         #default_left_cell
           - if @accords && @trees
             = render :partial => "layouts/listnav"
