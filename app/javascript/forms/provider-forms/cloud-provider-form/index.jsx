@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { componentTypes, validatorTypes } from '@data-driven-forms/react-form-renderer';
 
 import { API } from '../../../http_api';
@@ -23,7 +23,7 @@ const loadProviderServerZones = () =>
   API.get('/api/zones?expand=resources&attributes=id,name,visible&filter[]=visible!=false&sort_by=name')
     .then(({ resources }) => resources.map(({ name }) => ({ value: name, label: name })));
 
-const initialSchema = type => ([
+const initialSchema = [
   {
     component: componentTypes.TEXT_FIELD,
     name: 'name',
@@ -37,7 +37,6 @@ const initialSchema = type => ([
     component: componentTypes.TEXT_FIELD,
     name: 'type',
     type: 'hidden',
-    initialValue: type,
     validate: [{
       type: validatorTypes.REQUIRED,
     }],
@@ -48,58 +47,93 @@ const initialSchema = type => ([
     label: __('Zone'),
     placeholder: `<${__('Choose')}>`,
     loadOptions: loadProviderServerZones,
-    initialValue: 'default',
     isRequired: true,
     validate: [{
       type: validatorTypes.REQUIRED,
     }],
   },
-]);
+];
 
-const CloudProviderForm = ({ ...props }) => {
-  const [{ type, schema }, setState] = useState({ schema: { fields: [] } });
+const CloudProviderForm = ({ providerId, ...props }) => {
+  const [{ type, schema, values }, setState] = useState({ schema: { fields: [] } });
+
+  const loadProviderSchema = (type, newValues = {}) => {
+    API.options(`/api/providers?type=${type}`).then(({ data: { provider_form_schema } }) => { // eslint-disable-line camelcase
+      setState({
+        type,
+        schema: {
+          fields: [
+            ...initialSchema,
+            {
+              component: componentTypes.SUB_FORM,
+              name: type,
+              ...provider_form_schema, // eslint-disable-line camelcase
+            },
+          ],
+        },
+        values: { type, ...newValues },
+      });
+    });
+  };
+
+  useEffect(() => {
+    if (providerId) {
+      API.get(`/api/providers/${providerId}?attributes=endpoints,authentications,zone_name`).then(({
+        type,
+        endpoints: _endpoints,
+        authentications: _authentications,
+        ...provider
+      }) => {
+        const endpoints = _endpoints.reduce((obj, { role, ...endpoint }) => ({
+          ...obj,
+          [role]: endpoint,
+        }), {});
+
+        const authentications = _authentications.reduce((obj, { authtype, ...authentication }) => ({
+          ...obj,
+          [authtype]: authentication,
+        }), {});
+
+        loadProviderSchema(type, { ...provider, endpoints, authentications });
+      });
+    }
+  }, [providerId]);
 
   const typeSelected = ({ active, values: { type: newType } = {} }) => {
     if (active === 'type' && type !== newType) {
-      API.options(`/api/providers?type=${newType}`).then(({ data: { provider_form_schema } }) => { // eslint-disable-line camelcase
-        setState({
-          type: newType,
-          schema: {
-            fields: [
-              ...initialSchema(newType),
-              {
-                component: componentTypes.SUB_FORM,
-                name: newType,
-                ...provider_form_schema, // eslint-disable-line camelcase
-              },
-            ],
-          },
-        });
-      });
+      loadProviderSchema(newType);
     }
   };
 
-  const onSubmit = (data) => {
-    // Omit validator results from each endpoint
-    const endpoints = Object.keys(data.endpoints).reduce((obj, key) => {
-      const { valid, ...endpoint } = data.endpoints[key]; // eslint-disable-line no-unused-vars
-      return { ...obj, [key]: endpoint };
-    }, {});
+  const onSubmit = ({ type, ..._data }, { getState }) => {
+    // Retrieve fields from the schema, but omit the validator components as the API doesn't like them
+    const fields = Object.keys(getState().modified).filter(field => !field.match(/^authentications\.[^.]+\.valid$/));
+    // Filter out fields that are not available in the form schema
+    const data = _.pick(_data, fields);
 
-    API.post('/api/providers', { ...data, endpoints, ddf: true });
+    if (providerId) {
+      API.patch(`/api/providers/${providerId}`, { ...data, ddf: true });
+    } else {
+      API.post('/api/providers', { ...data, type, ddf: true });
+    }
   };
 
   return (
     <div>
-      <MiqFormRenderer
-        schema={typeSelectorSchema}
-        onSubmit={() => undefined}
-        renderFormButtons={() => ''}
-        onStateUpdate={typeSelected}
-      />
-      <MiqFormRenderer schema={schema} onSubmit={onSubmit} />
+      { !providerId && (
+        <MiqFormRenderer
+          schema={typeSelectorSchema}
+          onSubmit={() => undefined}
+          renderFormButtons={() => ''}
+          onStateUpdate={typeSelected}
+        />
+      ) }
+      <EditingContext.Provider value={providerId}>
+        <MiqFormRenderer schema={schema} onSubmit={onSubmit} initialValues={values} clearedValue={null} />
+      </EditingContext.Provider>
     </div>
   );
 };
 
+export const EditingContext = React.createContext({});
 export default CloudProviderForm;
