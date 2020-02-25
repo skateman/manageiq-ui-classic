@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import PropTypes from 'prop-types';
 import { componentTypes, validatorTypes } from '@data-driven-forms/react-form-renderer';
 
 import { API } from '../../../http_api';
@@ -55,7 +56,7 @@ const initialSchema = [
   },
 ];
 
-const CloudProviderForm = ({ providerId, kind, redirect, ...props }) => {
+const CloudProviderForm = ({ providerId, kind, redirect }) => {
   const [{ type, schema, values }, setState] = useState({ schema: { fields: [] } });
 
   const loadProviderSchema = (type, newValues = {}) => {
@@ -151,6 +152,18 @@ const CloudProviderForm = ({ providerId, kind, redirect, ...props }) => {
       </EditingContext.Provider>
     </div>
   );
+};
+
+CloudProviderForm.propTypes = {
+  providerId: PropTypes.oneOfType([PropTypes.string, PropTypes.number]),
+  kind: PropTypes.string,
+  redirect: PropTypes.string,
+};
+
+CloudProviderForm.defaultProps = {
+  providerId: undefined,
+  kind: undefined,
+  redirect: undefined,
 };
 
 export const EditingContext = React.createContext({});
