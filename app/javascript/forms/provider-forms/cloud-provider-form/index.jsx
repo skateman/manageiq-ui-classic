@@ -3,6 +3,7 @@ import { componentTypes, validatorTypes } from '@data-driven-forms/react-form-re
 
 import { API } from '../../../http_api';
 import MiqFormRenderer from '../../data-driven-form';
+import miqRedirectBack from '../../../helpers/miq-redirect-back';
 
 const typeSelectorSchema = {
   fields: [
@@ -54,7 +55,7 @@ const initialSchema = [
   },
 ];
 
-const CloudProviderForm = ({ providerId, ...props }) => {
+const CloudProviderForm = ({ providerId, kind, redirect, ...props }) => {
   const [{ type, schema, values }, setState] = useState({ schema: { fields: [] } });
 
   const loadProviderSchema = (type, newValues = {}) => {
@@ -73,11 +74,12 @@ const CloudProviderForm = ({ providerId, ...props }) => {
         },
         values: { type, ...newValues },
       });
-    });
+    }).then(miqSparkleOff);
   };
 
   useEffect(() => {
     if (providerId) {
+      miqSparkleOn();
       API.get(`/api/providers/${providerId}?attributes=endpoints,authentications,zone_name`).then(({
         type,
         endpoints: _endpoints,
@@ -101,21 +103,29 @@ const CloudProviderForm = ({ providerId, ...props }) => {
 
   const typeSelected = ({ active, values: { type: newType } = {} }) => {
     if (active === 'type' && type !== newType) {
+      miqSparkleOn();
       loadProviderSchema(newType);
     }
   };
 
+  const onCancel = () => {
+    const message = sprintf(providerId ? __('Edit of %s was cancelled by the user') : __('Add of %s was cancelled by the user'), kind);
+    miqRedirectBack(message, 'success', redirect);
+  };
+
   const onSubmit = ({ type, ..._data }, { getState }) => {
+    miqSparkleOn();
+
+    const message = sprintf(__('%s %s was saved'), kind, values.name);
+
     // Retrieve fields from the schema, but omit the validator components as the API doesn't like them
     const fields = Object.keys(getState().modified).filter(field => !field.match(/^authentications\.[^.]+\.valid$/));
     // Filter out fields that are not available in the form schema
-    const data = _.pick(_data, fields);
+    const data = { ..._.pick(_data, fields), ddf: true };
 
-    if (providerId) {
-      API.patch(`/api/providers/${providerId}`, { ...data, ddf: true });
-    } else {
-      API.post('/api/providers', { ...data, type, ddf: true });
-    }
+    const request = providerId ? API.patch(`/api/providers/${providerId}`, data) : API.post('/api/providers', { type, ...data });
+
+    request.then(() => miqRedirectBack(message, 'success', redirect)).catch(miqSparkleOff);
   };
 
   return (
@@ -129,7 +139,15 @@ const CloudProviderForm = ({ providerId, ...props }) => {
         />
       ) }
       <EditingContext.Provider value={providerId}>
-        <MiqFormRenderer schema={schema} onSubmit={onSubmit} initialValues={values} clearedValue={null} />
+        <MiqFormRenderer
+          schema={schema}
+          onSubmit={onSubmit}
+          onCancel={onCancel}
+          initialValues={values}
+          clearedValue={null}
+          canReset
+          clearOnUnmount
+        />
       </EditingContext.Provider>
     </div>
   );
