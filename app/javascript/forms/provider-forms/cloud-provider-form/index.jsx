@@ -1,31 +1,28 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useContext } from 'react';
 import PropTypes from 'prop-types';
 import { componentTypes, validatorTypes } from '@data-driven-forms/react-form-renderer';
 
 import { API } from '../../../http_api';
 import MiqFormRenderer from '../../data-driven-form';
 import miqRedirectBack from '../../../helpers/miq-redirect-back';
+import fieldsMapper from '../../mappers/formFieldsMapper';
 
-const typeSelectorSchema = {
-  fields: [
-    {
-      component: componentTypes.SELECT,
-      name: 'type',
-      label: __('Type'),
-      placeholder: `<${__('Choose')}>`,
-      loadOptions: () =>
-        API.options('/api/providers').then(({ data: { supported_providers } }) => supported_providers // eslint-disable-line camelcase
-          .filter(({ kind }) => kind === 'cloud')
-          .map(({ title, type }) => ({ value: type, label: title }))),
-    },
-  ],
-};
+export const EditingContext = React.createContext({});
 
-const loadProviderServerZones = () =>
-  API.get('/api/zones?expand=resources&attributes=id,name,visible&filter[]=visible!=false&sort_by=name')
-    .then(({ resources }) => resources.map(({ name }) => ({ value: name, label: name })));
+const typeSelectField = (edit, filter, initialValue) => ({
+  component: 'provider-select-field',
+  name: 'type',
+  label: __('Type'),
+  placeholder: `<${__('Choose')}>`,
+  isDisabled: edit,
+  // initialValue,
+  loadOptions: () =>
+    API.options('/api/providers').then(({ data: { supported_providers } }) => supported_providers // eslint-disable-line camelcase
+      .filter(({ kind }) => kind === filter)
+      .map(({ title, type }) => ({ value: type, label: title }))),
+});
 
-const initialSchema = [
+const commonFields = [
   {
     component: componentTypes.TEXT_FIELD,
     name: 'name',
@@ -36,19 +33,13 @@ const initialSchema = [
     }],
   },
   {
-    component: componentTypes.TEXT_FIELD,
-    name: 'type',
-    type: 'hidden',
-    validate: [{
-      type: validatorTypes.REQUIRED,
-    }],
-  },
-  {
     component: componentTypes.SELECT,
     name: 'zone_name',
     label: __('Zone'),
     placeholder: `<${__('Choose')}>`,
-    loadOptions: loadProviderServerZones,
+    loadOptions: () =>
+      API.get('/api/zones?expand=resources&attributes=id,name,visible&filter[]=visible!=false&sort_by=name')
+        .then(({ resources }) => resources.map(({ name }) => ({ value: name, label: name }))),
     isRequired: true,
     validate: [{
       type: validatorTypes.REQUIRED,
@@ -56,7 +47,48 @@ const initialSchema = [
   },
 ];
 
-const CloudProviderForm = ({ providerId, kind, redirect }) => {
+const ProviderSelectField = ({ FieldProvider, ...props }) => {
+  const { edit, setState } = useContext(EditingContext);
+  const Component = fieldsMapper['select-field'];
+  const enhancedChange = onChange => (type) => {
+    miqSparkleOn();
+    setState({ fields: [] });
+    // Request the provider's schema remotely
+    API.options(`/api/providers?type=${type}`).then(({ data: { provider_form_schema } }) => { // eslint-disable-line camelcase
+      setTimeout(() => {
+        setState({
+          fields: [
+            typeSelectField(edit, 'cloud', type),
+            ...commonFields,
+            {
+              component: componentTypes.SUB_FORM,
+              name: type,
+              ...provider_form_schema, // eslint-disable-line camelcase
+            },
+          ],
+          values: { foo: 0 },
+        });
+        miqSparkleOff();
+      });
+    });
+
+    return onChange(type);
+  };
+
+  return (
+    <FieldProvider
+      {...props}
+      render={({ input: { onChange, ...input }, ...props }) => (
+        <Component input={{ ...input, onChange: enhancedChange(onChange) }} {...props} />
+      )}
+    />
+  );
+};
+
+const CloudProviderForm = ({ providerId, kind, title, redirect }) => {
+  const [{ fields, values }, setState] = useState({ fields: [typeSelectField(!!providerId, kind)] });
+
+  /*
   const [{ type, schema, values }, setState] = useState({ schema: { fields: [] } });
 
   const loadProviderSchema = (type, newValues = {}) => {
@@ -108,16 +140,17 @@ const CloudProviderForm = ({ providerId, kind, redirect }) => {
       loadProviderSchema(newType);
     }
   };
+  */
 
   const onCancel = () => {
-    const message = sprintf(providerId ? __('Edit of %s was cancelled by the user') : __('Add of %s was cancelled by the user'), kind);
+    const message = sprintf(providerId ? __('Edit of %s was cancelled by the user') : __('Add of %s was cancelled by the user'), title);
     miqRedirectBack(message, 'success', redirect);
   };
 
   const onSubmit = ({ type, ..._data }, { getState }) => {
     miqSparkleOn();
 
-    const message = sprintf(__('%s %s was saved'), kind, values.name);
+    const message = sprintf(__('%s %s was saved'), title, values.name);
 
     // Retrieve fields from the schema, but omit the validator components as the API doesn't like them
     const fields = Object.keys(getState().modified).filter(field => !field.match(/^authentications\.[^.]+\.valid$/));
@@ -129,19 +162,17 @@ const CloudProviderForm = ({ providerId, kind, redirect }) => {
     request.then(() => miqRedirectBack(message, 'success', redirect)).catch(miqSparkleOff);
   };
 
+  const formFieldsMapper = {
+    ...fieldsMapper,
+    'provider-select-field': ProviderSelectField,
+  };
+
   return (
     <div>
-      { !providerId && (
+      <EditingContext.Provider value={{ providerId, setState }}>
         <MiqFormRenderer
-          schema={typeSelectorSchema}
-          onSubmit={() => undefined}
-          renderFormButtons={() => ''}
-          onStateUpdate={typeSelected}
-        />
-      ) }
-      <EditingContext.Provider value={providerId}>
-        <MiqFormRenderer
-          schema={schema}
+          formFieldsMapper={formFieldsMapper}
+          schema={{ fields }}
           onSubmit={onSubmit}
           onCancel={onCancel}
           initialValues={values}
@@ -157,14 +188,15 @@ const CloudProviderForm = ({ providerId, kind, redirect }) => {
 CloudProviderForm.propTypes = {
   providerId: PropTypes.oneOfType([PropTypes.string, PropTypes.number]),
   kind: PropTypes.string,
+  title: PropTypes.string,
   redirect: PropTypes.string,
 };
 
 CloudProviderForm.defaultProps = {
   providerId: undefined,
   kind: undefined,
+  title: undefined,
   redirect: undefined,
 };
 
-export const EditingContext = React.createContext({});
 export default CloudProviderForm;

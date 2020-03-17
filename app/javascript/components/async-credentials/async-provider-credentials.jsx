@@ -5,7 +5,7 @@ import AsyncCredentials from './async-credentials';
 import { EditingContext } from '../../forms/provider-forms/cloud-provider-form';
 
 const AsyncProviderCredentials = ({ validation, ...props }) => {
-  const providerId = useContext(EditingContext);
+  const { providerId } = useContext(EditingContext);
 
   if (!validation) {
     // Pass down the required `edit` to the password component (if it exists)

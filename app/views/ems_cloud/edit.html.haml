@@ -1,4 +1,4 @@
-= react('CloudProviderForm', :providerId => @ems.id, :redirect => edit_redirect_path(@lastaction, @ems), :kind => ui_lookup(:model => 'ManageIQ::Providers::CloudManager'))
+= react('CloudProviderForm', :providerId => @ems.id, :redirect => edit_redirect_path(@lastaction, @ems), :kind => 'cloud', :title => ui_lookup(:model => 'ManageIQ::Providers::CloudManager'))
 
 = form_for(@ems,
            :url    => ems_cloud_path(@ems),
