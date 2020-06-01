@@ -9,6 +9,7 @@ import {
 } from 'patternfly-react';
 import { rawComponents } from '@data-driven-forms/pf3-component-mapper';
 
+import { useFormApi } from '@@ddf';
 import RequiredLabel from './required-label';
 
 const DataDrivenInputWithPrefix = ({
@@ -19,11 +20,12 @@ const DataDrivenInputWithPrefix = ({
   ...rest
 }) => {
   const [prefix, setPrefix] = useState();
+  const formOptions = useFormApi();
   /**
    * get string prefix from initial value on after initial component mount
    */
   useEffect(() => {
-    const value = rest.formOptions.getFieldState(rest.name);
+    const value = formOptions.getFieldState(rest.name);
     if (value.initial) {
       setPrefix(value.initial.substring(0, value.initial.indexOf(prefixSeparator) + prefixSeparator.length));
     }
@@ -100,9 +102,6 @@ DataDrivenInputWithPrefix.propTypes = {
   prefixSeparator: PropTypes.string,
   validate: PropTypes.func,
   prefixOptions: PropTypes.arrayOf(PropTypes.shape({ label: PropTypes.string, value: PropTypes.any })).isRequired,
-  formOptions: PropTypes.shape({
-    getFieldState: PropTypes.func.isRequired,
-  }).isRequired,
 };
 
 DataDrivenInputWithPrefix.defaultProps = {
