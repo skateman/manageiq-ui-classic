@@ -9,11 +9,10 @@ import {
 } from 'patternfly-react';
 import { rawComponents } from '@data-driven-forms/pf3-component-mapper';
 
-import { useFormApi } from '@@ddf';
+import { useFormApi, useFieldApi } from '@@ddf';
 import RequiredLabel from './required-label';
 
 const DataDrivenInputWithPrefix = ({
-  FieldProvider,
   prefixOptions,
   validate,
   prefixSeparator,
@@ -35,65 +34,60 @@ const DataDrivenInputWithPrefix = ({
    * create regular expression to strip the value of its prefix
    */
   const prefixMatcher = new RegExp(`.*${prefixSeparator}`);
+
+  const { isRequired, label, input: { name, onChange, value }, meta: { error } } = useFieldApi({
+    ...rest,
+    validate: (value) => {
+      let implicitValidator;
+      let missingPrefix;
+      if (validate) {
+        implicitValidator = validate(value);
+      }
+      if (prefix) {
+        missingPrefix = (value && value.replace(prefixMatcher, '') === '') || (value === prefix) ? __('Required') : undefined;
+      }
+      return implicitValidator || missingPrefix;
+    },
+  });
+
   return (
-    <FieldProvider
-      {...rest}
-      validate={(value) => {
-        let implicitValidator;
-        let missingPrefix;
-        if (validate) {
-          implicitValidator = validate(value);
-        }
-        if (prefix) {
-          missingPrefix = (value && value.replace(prefixMatcher, '') === '') || (value === prefix) ? __('Required') : undefined;
-        }
-        return implicitValidator || missingPrefix;
-      }}
-    >
-      {({
-        isRequired,
-        label,
-        input: { name, onChange, value },
-        meta: { error },
-      }) => (
-        <FormGroup name={name} validationState={error && 'error'}>
-          <div>
-            <ControlLabel>
-              {isRequired ? <RequiredLabel label={label} /> : label }
-            </ControlLabel>
-          </div>
-          <div className="dynamic-prefix-input">
-            <rawComponents.Select
-              classNamePrefix="ddorg__pf3-component-mapper__select"
-              invalid={isRequired && !prefix}
-              id={`dynamic-prefix-select-${rest.name}`}
-              input={{
-                onChange: (prefix) => {
-                  onChange(`${prefix}${value.replace(prefixMatcher, '')}`);
-                  setPrefix(prefix);
-                },
-                value: prefix,
-              }}
-              options={prefixOptions}
+    <FormGroup name={name} validationState={error && 'error'}>
+      <div>
+        <ControlLabel>
+          {isRequired ? <RequiredLabel label={label} /> : label }
+        </ControlLabel>
+      </div>
+      <div className="dynamic-prefix-input">
+        <rawComponents.Select
+          classNamePrefix="ddorg__pf3-component-mapper__select"
+          invalid={isRequired && !prefix}
+          id={`dynamic-prefix-select-${rest.name}`}
+          input={{
+            onChange: (prefix) => {
+              onChange(`${prefix}${value.replace(prefixMatcher, '')}`);
+              setPrefix(prefix);
+            },
+            value: prefix,
+            name: `dynamic-prefix-select-${rest.name}`,
+          }}
+          options={prefixOptions}
+        />
+        {prefix && (
+          <InputGroup>
+            <InputGroup.Addon>
+              {prefix}
+            </InputGroup.Addon>
+            <FormControl
+              onChange={({ target: { value } }) => onChange(`${prefix}${value}`)}
+              value={value.replace(prefixMatcher, '')}
+              name={name}
+              id={`dynamic-prefix-text-input-${rest.name}`}
             />
-            {prefix && (
-            <InputGroup>
-              <InputGroup.Addon>
-                {prefix}
-              </InputGroup.Addon>
-              <FormControl
-                onChange={({ target: { value } }) => onChange(`${prefix}${value}`)}
-                value={value.replace(prefixMatcher, '')}
-                name={name}
-                id={`dynamic-prefix-text-input-${rest.name}`}
-              />
-            </InputGroup>
-            )}
-          </div>
-          {error && <HelpBlock>{error}</HelpBlock>}
-        </FormGroup>
-      )}
-    </FieldProvider>
+          </InputGroup>
+        )}
+      </div>
+      {error && <HelpBlock>{error}</HelpBlock>}
+    </FormGroup>
   );
 };
 
