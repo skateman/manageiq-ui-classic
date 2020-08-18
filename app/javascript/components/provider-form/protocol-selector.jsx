@@ -1,8 +1,7 @@
 import React, { useState, useContext } from 'react';
-import PropTypes from 'prop-types';
 
 import { components } from '@data-driven-forms/pf3-component-mapper';
-import { useFormApi, useFieldApi } from '@@ddf';
+import { useFormApi, FormSpy } from '@@ddf';
 import { EditingContext } from './index';
 
 const filter = (items, toDelete) => Object.keys(items).filter(key => !toDelete.includes(key)).reduce((obj, key) => ({
@@ -13,11 +12,11 @@ const filter = (items, toDelete) => Object.keys(items).filter(key => !toDelete.i
 // This is a special <Select> component that allows altering underlying endpoints/authentications which is intended to
 // be used when there's a variety of protocols for a given implemented service. For example event stream collection in
 // some providers allows the user to choose from multiple protocols.
-const ProtocolSelector = ({ initialValue, ...props }) => {
+const ProtocolSelector = ({ initialValue, name, options, ...props }) => {
+  return <span/>;
   const [loaded, setLoaded] = useState(false);
   const { providerId } = useContext(EditingContext);
   const formOptions = useFormApi();
-  const { input: { name, onChange, ...input }, options, ...rest } = useFieldApi(props);
 
   const fieldState = formOptions.getFieldState(name);
 
@@ -43,40 +42,47 @@ const ProtocolSelector = ({ initialValue, ...props }) => {
     setLoaded(true);
   }
 
-  const enhancedChange = onChange => (value) => {
-    setTimeout(() => {
-      // Load the initial and current values for the endpoints/authentications after the field value has been changed
-      const {
-        initialValues: {
-          endpoints: initialEndpoints = {},
-          authentications: initialAuthentications = {},
-        },
-        values: {
-          endpoints: currentEndpoints = {},
-          authentications: currentAuthentications = {},
-        },
-      } = formOptions.getState();
+  const onChange = ({ values }) => {
+    const value = values[name];
 
-      // Map the values of all possible options into an array
-      const optionValues = options.map(({ value }) => value);
-      // Determine which endpoint/authentication pair has to be removed from the form state
-      const toDelete = optionValues.filter(option => option !== value);
+    if (value) {
+      setTimeout(() => {
+        // Load the initial and current values for the endpoints/authentications after the field value has been changed
+        const {
+          initialValues: {
+            endpoints: initialEndpoints = {},
+            authentications: initialAuthentications = {},
+          },
+          values: {
+            endpoints: currentEndpoints = {},
+            authentications: currentAuthentications = {},
+          },
+        } = formOptions.getState();
 
-      // Adjust the endpoints/authentications and pass them to the form state
-      formOptions.change('endpoints', {
-        ...filter(initialEndpoints, toDelete),
-        ...filter(currentEndpoints, optionValues),
+        // Map the values of all possible options into an array
+        const optionValues = options.map(({ value }) => value);
+        // Determine which endpoint/authentication pair has to be removed from the form state
+        const toDelete = optionValues.filter(option => option !== value);
+
+        // Adjust the endpoints/authentications and pass them to the form state
+        formOptions.change('endpoints', {
+          ...filter(initialEndpoints, toDelete),
+          ...filter(currentEndpoints, optionValues),
+        });
+        formOptions.change('authentications', {
+          ...filter(initialAuthentications, toDelete),
+          ...filter(currentAuthentications, optionValues),
+        });
       });
-      formOptions.change('authentications', {
-        ...filter(initialAuthentications, toDelete),
-        ...filter(currentAuthentications, optionValues),
-      });
-    });
-
-    return onChange(value);
+    }
   };
 
-  return <components.Select input={{ name, ...input, onChange: enhancedChange(onChange) }} options={options} {...rest} />;
+  return (
+    <>
+      <FormSpy subscription={{ values: name }} onChange={onChange} />
+      <components.Select name={name} options={options} {...props} />
+    </>
+  );
 };
 
 export default ProtocolSelector;

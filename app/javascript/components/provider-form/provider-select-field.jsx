@@ -1,4 +1,5 @@
-import React, { useContext } from 'react';
+import React, { useContext, useEffect } from 'react';
+import useIsMounted from 'ismounted';
 import { set } from 'lodash';
 
 import { useFormApi, useFieldApi } from '@@ddf';
@@ -12,27 +13,27 @@ const extractInitialValues = ({ name, initialValue, fields }) => {
 };
 
 const ProviderSelectField = ({ kind, ...props }) => {
+  const isMounted = useIsMounted();
   const formOptions = useFormApi();
-
+  const { input: { value } } = useFieldApi(props);
   const { isDisabled: edit } = props;
   const { setState } = useContext(EditingContext);
 
-  const enhancedChange = onChange => (type) => {
-    if (!edit && type) {
+  useEffect(() => {
+    if (!edit && value) {
       miqSparkleOn();
 
-      loadProviderFields(kind, type).then((fields) => {
-        setState(({ fields: [firstField] }) => ({ fields: [firstField, ...fields] }));
-        const initialValues = extractInitialValues({ fields });
-        formOptions.initialize(Object.keys(initialValues).reduce((obj, key) => set(obj, key, initialValues[key]), { type }));
+      loadProviderFields(kind, value).then((fields) => {
+        if (isMounted.current) {
+          setState(({ fields: [firstField] }) => ({ fields: [firstField, ...fields] }));
+          const initialValues = extractInitialValues({ fields });
+          formOptions.initialize(Object.keys(initialValues).reduce((obj, key) => set(obj, key, initialValues[key]), { value }));
+        }
       }).then(miqSparkleOff);
     }
+  }, [value]);
 
-    return onChange(type);
-  };
-
-  const { input: { onChange, ...input }, ...rest } = useFieldApi(props);
-  return <components.Select input={{ ...input, onChange: enhancedChange(onChange) }} {...rest} />;
+  return <components.Select {...props} />;
 };
 
 export default ProviderSelectField;
